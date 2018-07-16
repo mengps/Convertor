@@ -29,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     QPushButton *saveButton = new QPushButton(tr("保存到本地"), this);
     QLabel *colorListLabel = new QLabel(tr("选择框内的颜色:"), this);
     m_colorComboBox = new QComboBox(this);
+    m_colorComboBox->setMaxCount(300);
     m_conversion = new Conversion(this);
     connect(m_conversion, &Conversion::currentColorChanged, m_fromColorEdit, &QLineEdit::setText);
     connect(openColorDialog, &QPushButton::clicked, this, [this]()
@@ -41,14 +42,14 @@ MainWindow::MainWindow(QWidget *parent)
     {
         m_conversion->convertToColor(stringToRgb(m_fromColorEdit->text()), stringToRgb(m_toColorEdit->text()));
     });
-    connect(convertSetButton, &QPushButton::clicked, this, [this]
+    connect(convertSetButton, &QPushButton::clicked, this, [this]()
     {
-        m_conversion->convertInSetColor(stringToRgb(m_toColorEdit->text()));
+        m_conversion->convertColorSet(stringToRgb(m_toColorEdit->text()));
     });
     connect(convertAllButton, &QPushButton::clicked, this, [this]()
     {
-        if (m_conversion->hasSelectedRect())
-            m_conversion->convertSelectedRectToColor(stringToRgb(m_toColorEdit->text()));
+        if (m_conversion->hasSelectBox())
+            m_conversion->convertSelectBoxToColor(stringToRgb(m_toColorEdit->text()));
     });
     connect(saveButton, &QPushButton::clicked, this, [this]()
     {
@@ -56,7 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (!fileName.isEmpty())
             m_conversion->pixmap()->save(fileName, "PNG");
     });
-    connect(m_conversion, &Conversion::selectedRectChanged, this, [this]()
+    connect(m_conversion, &Conversion::selectBoxChanged, this, [this]()
     {
         m_colorComboBox->clear();
         for (auto it : m_conversion->getRectColorSet())
@@ -88,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent)
     mainLayout->addWidget(saveButton, 3, 2, Qt::AlignHCenter);
     mainLayout->addWidget(m_conversion, 4, 0, -1, 3, Qt::AlignCenter);
 
+    setLayout(mainLayout);
     setWindowTitle(tr("颜色转换器"));
     setMinimumSize(510, 510);
     setAutoFillBackground(true);
@@ -99,6 +101,11 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 MainWindow::~MainWindow()
+{
+
+}
+
+void MainWindow::createActions()
 {
 
 }

@@ -1,8 +1,9 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QWidget>
+#include <QMainWindow>
 
+class QMenu;
 class QLineEdit;
 class QComboBox;
 class Conversion;
@@ -14,7 +15,10 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    void createActions();
+
 private:
+    QMenu *menu;
     QLineEdit *m_fromColorEdit;
     QLineEdit *m_toColorEdit;
     QComboBox *m_colorComboBox;

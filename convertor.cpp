@@ -32,11 +32,11 @@ Conversion::Conversion(QWidget *parent)
     : QLabel(parent)
 {
     m_track = true;
-    m_hasSelectedRect = false;
+    m_hasSelectBox = false;
     setAlignment(Qt::AlignCenter);
     setAcceptDrops(true);
     setMouseTracking(true);
-    setStyleSheet("border:1px solid #000; background-color:transparent;");
+    setStyleSheet("border:1px solid #222");
     clear();
 }
 
@@ -48,33 +48,8 @@ Conversion::~Conversion()
 void Conversion::clear()
 {
     setText(tr("<拖动图像到此>"));
-    setFixedSize(200, 200);
-}
-
-void Conversion::clearSelectedRect()
-{
-    m_hasSelectedRect = false;
-    m_selectedRect.setRect(0, 0, 0, 0);
-    update();
-}
-
-QRect Conversion::normalizeRect()
-{
-    QRect rect = m_selectedRect.normalized();
-    int x = 0;
-    int y = 0;
-    if (rect.x() >= 0 && rect.x() <= m_image.width())
-        x = rect.x();
-    if (rect.y() >= 0 && rect.y() <= m_image.height())
-        y = rect.y();
-    int w = x + rect.width();
-    int h = y + rect.height();
-    if (w > m_image.width())
-        w = m_image.width();
-    if (h > m_image.height())
-        h = m_image.height();
-
-    return QRect(x, y, w, h);
+    setFixedSize(240, 240);
+    m_shapeController.setFixedSize(size());
 }
 
 void Conversion::setImage(const QImage &image)
@@ -82,9 +57,10 @@ void Conversion::setImage(const QImage &image)
     m_image = image.convertToFormat(QImage::Format_RGBA8888);
     setPixmap(QPixmap::fromImage(m_image));
     setFixedSize(m_image.size());
+    m_shapeController.setFixedSize(m_image.size());
 }
 
-bool Conversion::convertInSetColor(QRgb to_argb)
+bool Conversion::convertColorSet(QRgb to_argb)
 {
     if (!m_image.isNull())
     {
@@ -96,33 +72,27 @@ bool Conversion::convertInSetColor(QRgb to_argb)
                 for (int y = 0; y < image.height(); y++)
                 {
                     QString argb = rgbToString(image.pixel(x, y));
-                    if (m_rectColorSet.contains(argb))
+                    if (m_colorSet.contains(argb))
                         image.setPixel(x, y, to_argb);
                 }
             }
             setImage(image);
-            clearSelectedRect();
+            m_shapeController.clear();
         });
         return true;
     }
     else return false;
 }
 
-bool Conversion::convertSelectedRectToColor(QRgb to_argb)
+bool Conversion::convertSelectBoxToColor(QRgb to_argb)
 {
     if (!m_image.isNull())
     {
         QImage image = m_image;
-        QRect rect = normalizeRect();
-        for (int i = rect.x(); i < rect.width(); i++)
-        {
-            for (int j = rect.y(); j < rect.height(); j++)
-            {
-                image.setPixel(i, j, to_argb);
-            }
-        }
+        QVector<QPoint> points = m_shapeController.pointsInShape();
+        for (auto it : points)
+            image.setPixel(it, to_argb);
         setImage(image);
-        clearSelectedRect();
         return true;
     }
     else return false;
@@ -142,7 +112,7 @@ bool Conversion::convertToColor(QRgb from_argb, QRgb to_argb)
             }
         }
         setImage(image);
-        clearSelectedRect();
+        m_shapeController.clear();
         return true;
     }
     else return false;
@@ -151,11 +121,7 @@ bool Conversion::convertToColor(QRgb from_argb, QRgb to_argb)
 void Conversion::paintEvent(QPaintEvent *event)
 {
     QLabel::paintEvent(event);
-
-    QRect rect = m_selectedRect.normalized();
-    QPainter painter(this);
-    painter.setBrush(QBrush(QColor(144, 144, 144, 58)));
-    painter.drawRect(rect);
+    m_shapeController.drawShape(this);
 }
 
 void Conversion::dragEnterEvent(QDragEnterEvent *event)
@@ -177,10 +143,10 @@ void Conversion::dragLeaveEvent(QDragLeaveEvent *event)
 
 void Conversion::dropEvent(QDropEvent *event)
 {
-    m_hasSelectedRect = false;
-    m_selectedRect.setRect(0, 0, 0, 0);
+    m_hasSelectBox = false;
     const QMimeData *mimeData = event->mimeData();
-    if (mimeData->hasImage()) {
+    if (mimeData->hasImage())
+    {
         setImage(qvariant_cast<QImage>(mimeData->imageData()));
     }
     else if(mimeData->hasUrls())
@@ -193,8 +159,8 @@ void Conversion::dropEvent(QDropEvent *event)
             setText(tr("<非图像文件!>"));
     }
     else clear();
-    m_rectColorSet.clear();
-    emit selectedRectChanged();
+    m_colorSet.clear();
+    emit selectBoxChanged();
 }
 
 void Conversion::mouseMoveEvent(QMouseEvent *event)
@@ -209,24 +175,22 @@ void Conversion::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
-    if (m_hasSelectedRect && (event->buttons() & Qt::LeftButton))
+    if (m_hasSelectBox && (event->buttons() & Qt::LeftButton))
     {
-        m_selectedRect.setWidth(event->x() - m_selectedRect.x());
-        m_selectedRect.setHeight(event->y() - m_selectedRect.y());
+        m_shapeController.setX2(event->x());
+        m_shapeController.setY2(event->y());
 
-        m_rectColorSet.clear();    //重新装入数据
-        QRect rect = normalizeRect();
-        for (int i = rect.x(); i < rect.width(); i++)
+        if (!m_image.isNull())
         {
-            for (int j = rect.y(); j < rect.height(); j++)
+            QVector<QPoint> points = m_shapeController.pointsInShape();
+            for (auto it : points)
             {
-                m_rectColorSet.insert(rgbToString(m_image.pixel(i, j)));
-                if (m_rectColorSet.count() >= 300)  //最多保存300种颜色，如需更多请自行更改
+                m_colorSet.insert(rgbToString(m_image.pixel(it)));
+                if (m_colorSet.count() >= 1000)  //最多保存1000种颜色，如需更多请自行更改
                     break;
             }
         }
-
-        emit selectedRectChanged();
+        emit selectBoxChanged();
         update();
     }
 }
@@ -235,15 +199,17 @@ void Conversion::mousePressEvent(QMouseEvent *event)
 {
     if ((event->buttons() & Qt::LeftButton))
     {
-        m_hasSelectedRect = true;
-        m_selectedRect.setX(event->x());
-        m_selectedRect.setY(event->y());
+        m_hasSelectBox = true;
+        m_colorSet.clear();    //重新装入数据
+        m_shapeController.clear();
+        m_shapeController.setX1(event->x());
+        m_shapeController.setY1(event->y());
     }
     else if (event->buttons() & Qt::RightButton)
     {
         m_track = !m_track;
-        m_hasSelectedRect = false;
-        m_selectedRect.setRect(0, 0, 0, 0);
+        m_hasSelectBox = false;
+        m_shapeController.clear();
         update();
     }
 }

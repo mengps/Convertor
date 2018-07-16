@@ -26,13 +26,17 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
         main.cpp \
         convertor.cpp \
-        mainwindow.cpp
+        mainwindow.cpp \
+        shapecontroller.cpp
 
 HEADERS += \
         convertor.h \
-        mainwindow.h
+        mainwindow.h \
+        shapecontroller.h
 
 RESOURCES += \
         backgroun.qrc
+
+RC_ICONS += winIcon.ico
 
 DISTFILES +=
