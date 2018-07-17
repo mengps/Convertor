@@ -1,12 +1,11 @@
 #include "shapecontroller.h"
+#include <QtMath>
 #include <QPainter>
 #include <QPaintDevice>
-#include <QtMath>
-#include <QDebug>
 
 ShapeController::ShapeController()
 {
-    m_shape = ShapeController::Ellipse;
+    m_shape = ShapeController::Rect;
 }
 
 ShapeController::~ShapeController()
@@ -108,8 +107,8 @@ QRectF ShapeController::normalized()
         x = rect.x();
     if (rect.y() >= 0 && rect.y() <= m_fixedSize.height())
         y = rect.y();
-    qreal w = x + rect.width();
-    qreal h = y + rect.height();
+    qreal w = rect.x() + rect.width();
+    qreal h = rect.y() + rect.height();
     if (w > m_fixedSize.width())
         w = m_fixedSize.width();
     if (h > m_fixedSize.height())

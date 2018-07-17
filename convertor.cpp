@@ -3,7 +3,6 @@
 #include <QPainter>
 #include <QMimeData>
 #include <QDragEnterEvent>
-#include <QtConcurrent>
 
 extern QString rgbToString(QRgb rgb)
 {
@@ -28,11 +27,11 @@ extern QRgb stringToRgb(const QString &argb)
     return QRgb(text.toUInt(nullptr, 16));
 }
 
-Conversion::Conversion(QWidget *parent)
+Convertor::Convertor(QWidget *parent)
     : QLabel(parent)
 {
-    m_track = true;
     m_hasSelectBox = false;
+    setTrack(true);
     setAlignment(Qt::AlignCenter);
     setAcceptDrops(true);
     setMouseTracking(true);
@@ -40,51 +39,51 @@ Conversion::Conversion(QWidget *parent)
     clear();
 }
 
-Conversion::~Conversion()
+Convertor::~Convertor()
 {
 
 }
 
-void Conversion::clear()
+void Convertor::clear()
 {
     setText(tr("<拖动图像到此>"));
     setFixedSize(240, 240);
+    m_shapeController.clear();
     m_shapeController.setFixedSize(size());
+    update();
 }
 
-void Conversion::setImage(const QImage &image)
+void Convertor::setImage(const QImage &image)
 {
     m_image = image.convertToFormat(QImage::Format_RGBA8888);
     setPixmap(QPixmap::fromImage(m_image));
     setFixedSize(m_image.size());
     m_shapeController.setFixedSize(m_image.size());
+    update();
 }
 
-bool Conversion::convertColorSet(QRgb to_argb)
+bool Convertor::convertColorSet(QRgb to_argb)
 {
     if (!m_image.isNull())
     {
-        QtConcurrent::run([=]() //开启一个新的线程进行处理
+        QImage image = m_image;
+        for (int x = 0; x < image.width(); x++)
         {
-            QImage image = m_image;
-            for (int x = 0; x < image.width(); x++)
+            for (int y = 0; y < image.height(); y++)
             {
-                for (int y = 0; y < image.height(); y++)
-                {
-                    QString argb = rgbToString(image.pixel(x, y));
-                    if (m_colorSet.contains(argb))
-                        image.setPixel(x, y, to_argb);
-                }
+                QString argb = rgbToString(image.pixel(x, y));
+                if (m_colorSet.contains(argb))
+                    image.setPixel(x, y, to_argb);
             }
-            setImage(image);
-            m_shapeController.clear();
-        });
+        }
+        setImage(image);
+        emit finished();
         return true;
     }
     else return false;
 }
 
-bool Conversion::convertSelectBoxToColor(QRgb to_argb)
+bool Convertor::convertSelectBoxToColor(QRgb to_argb)
 {
     if (!m_image.isNull())
     {
@@ -93,12 +92,13 @@ bool Conversion::convertSelectBoxToColor(QRgb to_argb)
         for (auto it : points)
             image.setPixel(it, to_argb);
         setImage(image);
+        emit finished();
         return true;
     }
     else return false;
 }
 
-bool Conversion::convertToColor(QRgb from_argb, QRgb to_argb)
+bool Convertor::convertToColor(QRgb from_argb, QRgb to_argb)
 {
     if (!m_image.isNull())
     {
@@ -112,36 +112,36 @@ bool Conversion::convertToColor(QRgb from_argb, QRgb to_argb)
             }
         }
         setImage(image);
-        m_shapeController.clear();
+        emit finished();
         return true;
     }
     else return false;
 }
 
-void Conversion::paintEvent(QPaintEvent *event)
+void Convertor::paintEvent(QPaintEvent *event)
 {
     QLabel::paintEvent(event);
     m_shapeController.drawShape(this);
 }
 
-void Conversion::dragEnterEvent(QDragEnterEvent *event)
+void Convertor::dragEnterEvent(QDragEnterEvent *event)
 {
     setText(tr("<松开鼠标放入!>"));
     event->acceptProposedAction();
 }
 
-void Conversion::dragMoveEvent(QDragMoveEvent *event)
+void Convertor::dragMoveEvent(QDragMoveEvent *event)
 {
     event->acceptProposedAction();
 }
 
-void Conversion::dragLeaveEvent(QDragLeaveEvent *event)
+void Convertor::dragLeaveEvent(QDragLeaveEvent *event)
 {
     clear();
     event->accept();
 }
 
-void Conversion::dropEvent(QDropEvent *event)
+void Convertor::dropEvent(QDropEvent *event)
 {
     m_hasSelectBox = false;
     const QMimeData *mimeData = event->mimeData();
@@ -163,7 +163,7 @@ void Conversion::dropEvent(QDropEvent *event)
     emit selectBoxChanged();
 }
 
-void Conversion::mouseMoveEvent(QMouseEvent *event)
+void Convertor::mouseMoveEvent(QMouseEvent *event)
 {
     if (m_track)
     {
@@ -179,23 +179,11 @@ void Conversion::mouseMoveEvent(QMouseEvent *event)
     {
         m_shapeController.setX2(event->x());
         m_shapeController.setY2(event->y());
-
-        if (!m_image.isNull())
-        {
-            QVector<QPoint> points = m_shapeController.pointsInShape();
-            for (auto it : points)
-            {
-                m_colorSet.insert(rgbToString(m_image.pixel(it)));
-                if (m_colorSet.count() >= 1000)  //最多保存1000种颜色，如需更多请自行更改
-                    break;
-            }
-        }
-        emit selectBoxChanged();
         update();
     }
 }
 
-void Conversion::mousePressEvent(QMouseEvent *event)
+void Convertor::mousePressEvent(QMouseEvent *event)
 {
     if ((event->buttons() & Qt::LeftButton))
     {
@@ -210,6 +198,22 @@ void Conversion::mousePressEvent(QMouseEvent *event)
         m_track = !m_track;
         m_hasSelectBox = false;
         m_shapeController.clear();
+        emit trackChanged(m_track);
         update();
+    }
+}
+
+void Convertor::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (!m_image.isNull() && event->button() == Qt::LeftButton)
+    {
+        QVector<QPoint> points = m_shapeController.pointsInShape();
+        for (auto it : points)
+        {
+            m_colorSet.insert(rgbToString(m_image.pixel(it)));
+            if (m_colorSet.count() >= 10000)  //最多保存10000种颜色，如需更多请自行更改
+                break;
+        }
+        emit selectBoxChanged();
     }
 }

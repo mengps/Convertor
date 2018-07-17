@@ -6,8 +6,8 @@
 class QMenu;
 class QLineEdit;
 class QComboBox;
-class Conversion;
-class MainWindow : public QWidget
+class Convertor;
+class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
@@ -17,12 +17,22 @@ public:
 
     void createActions();
 
+public slots:
+    void fillColorComboBox();
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
-    QMenu *menu;
+    QMenu *m_editMenu;
+    QMenu *m_toolMenu;
+    QMenu *m_optionMenu;
+    QToolBar *m_toolBar;
+    QWidget *m_toolBarWidget;
     QLineEdit *m_fromColorEdit;
     QLineEdit *m_toColorEdit;
     QComboBox *m_colorComboBox;
-    Conversion *m_conversion;
+    Convertor *m_convertor;
 };
 
 #endif // MAINWINDOW_H
